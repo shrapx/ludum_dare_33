@@ -27,7 +27,6 @@ public:
 
 	Input(unordered_map<int, unordered_map<string, bool>>& cmds) : m_commands(cmds)
 	{
-
 	}
 
 	int kvm_id = 0;
@@ -43,6 +42,19 @@ public:
 	void key_input(sf::Event& event, bool value)
 	{
 		auto it = key_cmd.find(event.key.code);
+		if ( it != key_cmd.end() )
+		{
+			const string& cmd = it->second;
+			m_commands[kvm_id][ cmd ] = value;
+		}
+	};
+
+	void mouse_input(sf::Event& event, bool value)
+	{
+		uint16_t mbutton =
+			sf::Keyboard::KeyCount+event.mouseButton.button;
+
+		auto it = key_cmd.find(mbutton);
 		if ( it != key_cmd.end() )
 		{
 			const string& cmd = it->second;
@@ -97,19 +109,5 @@ public:
 			}
 		}
 	}
-
-	void mouse_input(sf::Event& event, bool value)
-	{
-		uint16_t mbutton =
-			sf::Keyboard::KeyCount+event.mouseButton.button;
-
-		auto it = key_cmd.find(mbutton);
-		if ( it != key_cmd.end() )
-		{
-			const string& cmd = it->second;
-			m_commands[kvm_id][ cmd ] = value;
-		}
-	};
-
 };
 #endif

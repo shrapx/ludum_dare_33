@@ -1,0 +1,115 @@
+{
+	"maps":{
+		"map1":"data/"
+	},
+
+	"textures":{
+		"tileset_01":"data/pix/tileset_01.png"
+	},
+
+	"parts":{
+		"body":{
+			"move":"vert",
+			"offset":[7,23],
+			"coord":[0,0,16,24],
+			"origin":[7,23],
+			"stat":[0.5,0.2, 1.0, 1.0, 0.0]},
+		"bumdrop":{
+			"move":"",
+			"offset":[6,20],
+			"coord":[16,8,16,8],
+			"origin":[6,1],
+			"stat":[0.5,0.1, 1.0, 1.0, 0.5]},
+		"foot_l":{
+			"move":"circle",
+			"offset":[6,20],
+			"coord":[16,0,8,8],
+			"origin":[4,4],
+			"stat":[0.5,0.1, 1.0, 1.0, 0.5]},
+		"foot_r":{
+			"move":"circle",
+			"offset":[9,20],
+			"coord":[24,0,8,8],
+			"origin":[4,4],
+			"stat":[0.5,0.1, 1.0, 1.0, 0.0]},
+		"hand_l_down":{
+			"move":"horiz",
+			"offset":[2,12],
+			"coord":[32,0,8,8],
+			"origin":[2,2],
+			"stat":[0.5,0.1, 1.0, -1.0, 0.0]},
+		"hand_l_up":{
+			"move":"",
+			"offset":[2,10],
+			"coord":[40,0,8,8],
+			"origin":[4,4],
+			"stat":[0.5,0.1, 1.0, -1.0, 0.0]},
+		"hand_r":{
+			"move":"horiz",
+			"offset":[13,12],
+			"coord":[40,8,8,8],
+			"origin":[2,3],
+			"stat":[0.5,0.1, 2.0, 1.0, 0.5]},
+		"hand_r_shield":{
+			"move":"horiz",
+			"offset":[13,12],
+			"coord":[32,16,16,16],
+			"origin":[6,7],
+			"stat":[0.5,0.1, 2.0, 1.0, 0.5]},
+		"face_smile":{
+			"move":"vert",
+			"offset":[9,11],
+			"coord":[48,0,16,16],
+			"origin":[8,8],
+			"stat":[0.5,0.2, 1.0, 1.0, 0.0]},
+		"face_joy":{
+			"move":"vert",
+			"offset":[9,11],
+			"coord":[48,16,16,16],
+			"origin":[8,8],
+			"stat":[0.5,0.2, 1.0, 2.0, 0.0]}
+	},
+
+	"blueprints":{
+
+		"hero":{
+			"origin":[7,23],
+			"texture":"tileset_01",
+
+			"walk":[
+				"foot_r",
+				"foot_l",
+				"hand_r_shield",
+				"body",
+				"face_smile",
+				"hand_l_down"
+				],
+
+			"jump":[
+				"bumdrop",
+				"hand_r_shield",
+				"body",
+				"face_joy",
+				"hand_l_up"
+				]
+		}
+	},
+
+	"spawns":[
+		{"name":"hero", "blueprint":"hero", "pos":[0,0]}
+	],
+
+	"kvm":"hero",
+
+	"binds":{
+		"W":"up",
+		"S":"down",
+		"A":"left",
+		"D":"right",
+		"Q":"item",
+		"E":"charge",
+		"MouseLeft":"fire",
+		"MouseRight":"charge",
+		"Space":"jump"
+	}
+}
