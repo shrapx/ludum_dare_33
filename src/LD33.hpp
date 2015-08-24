@@ -78,63 +78,25 @@ public:
 	}
 };
 
-float mag(sf::Vector2f& vec)
-{
-	return std::sqrt(std::pow(vec.x, 2) + std::pow(vec.y, 2));
-}
-sf::Vector2f norm(sf::Vector2f& vec)
-{
-	return vec / mag(vec);
-}
-
-class Hero
+class Tile
 {
 public:
+	int id =-1;
 
-	sf::Sprite sprite;
+	/// ai hints
+	bool jump_left=false; // adjacent and below is air : true, adjacent and above is true
+	bool jump_right=false;
 
-	vector<vector<int>> m_parts;
-	int m_part=0;
-
-	bool is_facing_right = true;
-
-	bool is_moving = false;
-
-	bool is_jumping = false;
-
-	bool has_enemy = false;
-	int enemy_target;
-
-	bool has_path = false;
-	sf::Vector2f path_target;
-	int path_progress = 0;
-
-	void update()
-	{
-		if(has_enemy)
-		{
-			/// walk toward + bounce enemy
-
-		}
-		else if(has_path)
-		{
-			/// walk toward path target
-			auto pos = sprite.getPosition();
-			auto dif = pos - path_target ;
-			auto dir = norm( dif );
-			dir.x *= 0.5f;
-			dir.y *= 0.5f;
-			sprite.setPosition( pos + dir );
-		}
-	}
-
+	bool walk_left=true; // adjacent tile is air : true
+	bool walk_right=true;
+	bool floor_below=false;
 };
 
 class Tiles
 {
 public:
 
-	unordered_map<int, unordered_map<int, int>> m_map;
+	unordered_map<int, unordered_map<int, Tile>> m_map;
 
 	void load( Json::Value& jval)
 	{
@@ -150,84 +112,286 @@ public:
 				{
 					int x = num % 192;
 					int y = num / 192;
-					m_map[x][y] = jdata[num].asInt()-1;
-
+					m_map[x][y].id = jdata[num].asInt()-1;
 				}
+				behaviours();
 				return;
 			}
 		}
 	}
 
-	sf::IntRect draw_range()
+	int getid(int x, int y) const
 	{
-		/// x,y and width and height
-
+		const auto& it = m_map.find(x);
+		if ( it == m_map.end() ) return -1;
+		const auto& map2 = it->second;
+		const auto& it2 = map2.find(y);
+		if ( it2 == map2.end() ) return 1;
+		return it2->second.id;
 	}
-};
 
-class Matter
-{
-
-public:
-
-	bool is_falling = 1;
-
-	unordered_set<int> is_overlap;
-
-	update()
+	const Tile* gett(int x, int y) const
 	{
-		// update is falling
-		///is_falling = 0;
-
-		// update touching an enemy
-		///is_overlap = get_overlaps();
-
-		//
+		const auto& it = m_map.find(x);
+		if ( it == m_map.end() ) return new Tile();
+		const auto& map2 = it->second;
+		const auto& it2 = map2.find(y);
+		if ( it2 == map2.end() ) return new Tile();
+		return &it2->second;
 	}
-};
 
-class Think
-{
-public:
-
-	/// make positional entity out of paths, with a target to next one and previous
-
-	sf::Vector2f position;
-	vector<sf::Vector2f> m_path;
-
-	void update(Hero& hero)
+	void behaviours()
 	{
-		/// path following
-
-		if (hero.has_path)
+		for (auto& x_pair : m_map)
 		{
-			if (hero.path_progress < m_path.size())
+			int x = x_pair.first;
+			auto& map_2 = x_pair.second;
+			for (auto& y_pair : map_2)
 			{
-				hero.path_target = position + m_path[hero.path_progress];
-				sf::Vector2f manhat = hero.sprite.getPosition() - hero.path_target;
-				manhat.x = abs(manhat.x);
-				manhat.y = abs(manhat.y);
-				float dist = manhat.x > manhat.y ? manhat.x : manhat.y;
+				int y = y_pair.first;
+				Tile& tile = y_pair.second;
 
-				cout << dist << endl;
-
-				if (dist < 4.0f)
-				{
-					hero.path_progress++;
-				}
-				hero.is_moving = true;
-			}
-			else
-			{
-				hero.is_moving = false;
-			  hero.has_path = false;
-			  hero.path_progress = 0;
+				tile.walk_left = ( getid(x-1, y) < 1 ) && (getid(x-1, y+1) > 0);
+				tile.walk_right = ( getid(x+1, y) < 1 ) && (getid(x+1, y+1) > 0);
+				tile.floor_below = ( getid(x, y+1) > 0 );
 			}
 		}
 
+		for (auto& x_pair : m_map)
+		{
+			int x = x_pair.first;
+			auto& map_2 = x_pair.second;
+			for (auto& y_pair : map_2)
+			{
+				int y = y_pair.first;
+				Tile& tile = y_pair.second;
+
+				tile.jump_left  = satisfy_jump(x,y,0);
+				tile.jump_right = satisfy_jump(x,y,1);
+
+			}
+		}
 	}
 
-	void load(Json::Value& jval)
+	bool satisfy_jump(int x, int y, bool is_right)
+	{
+		/// 4,5,6
+		int go_right = is_right ? 1 : -1;
+
+		/// col first
+		/// ##
+		/// h#
+		/// h#
+		/// H~
+
+		vector<sf::Vector2i> cpos =
+		{ {0,-3 * go_right},
+			{1, 1 * go_right},
+			{1, 2 * go_right},
+			{1, 3 * go_right} };
+
+		for( sf::Vector2i& pos : cpos )
+		{
+			const Tile* a = gett(pos.x, pos.y);
+
+			if (a->floor_below && a->id > 0)
+			{
+				return false;
+			}
+		}
+		return true;
+		/*
+		for( int dist = 4; dist < 7; ++dist)
+		{
+			const Tile* a = gett(x-1, y+dist*go_right);
+
+			bool jump_high = a->floor_below && a->id < 1;
+
+			if (jump_high) return true;
+
+			const Tile* b = gett(x-dist, y);
+
+			bool jump_long = b->floor_below && b->id < 1;
+			if (jump_long) return true;
+		}
+*/
+	}
+
+};
+
+
+class Hero
+{
+public:
+
+	enum : short { HEROES=0, MONSTERS, COINS};
+	short m_type;
+
+	enum : short { THINK, WAIT, MOVE, JUMP, DROP};
+	enum : short { FACING_L=0, FACING_R };
+
+	short m_facing = FACING_R;
+	short m_state = MOVE;
+
+	int wait_ticks = 0;
+	int wait_trigger = 100;
+
+	int jump_ticks = 0;
+
+	int jump_tick_default = 20;
+	int wait_ticks_default = 10;
+
+	float jump_speed_y = 0.0f;
+	float jump_speed_y_default = 0.2f;
+
+	float jump_speed_x = 0.0f;
+	float jump_speed_x_default = 1.0f;
+
+	float move_speed = 1.2f;
+	float move_fall = 2.0f;
+
+	sf::Vector2f m_pos;
+	sf::Vector2f m_origin;
+
+	vector<vector<int>> m_parts;
+	int m_part=0;
+
+	bool has_enemy = false;
+	int enemy_target;
+	int enemy_x;
+
+	bool has_path = false;
+	sf::Vector2f path_target;
+	int path_id = 0;
+
+	sf::Vector2f m_path_pos;
+	vector<sf::Vector2f> m_path;
+
+	void update(Tiles& tiles)
+	{
+		int x = m_pos.x/8;
+		int y = m_pos.y/8;
+
+		Tile& tile = tiles.m_map[x][y];
+
+		//cout << x << " "<< y << " " << tile.walk_right << endl;
+		switch (m_state)
+		{
+		case WAIT:
+			wait_ticks--;
+			if (wait_ticks==0) m_state = THINK;
+			break;
+
+		case MOVE:
+			if ( m_facing )
+			{
+				m_pos.x += move_speed;
+			}
+			else
+			{
+				m_pos.x -= move_speed;
+			}
+			break;
+
+		case JUMP:
+			if (jump_ticks>-jump_tick_default)
+			{
+				if (m_facing)
+				{
+					m_pos.x += jump_speed_x;
+				}
+				else
+				{
+					m_pos.x -= jump_speed_x;
+				}
+
+				m_pos.y -= jump_ticks*jump_speed_y;
+				jump_ticks--;
+			}
+			else /// falling with damageable bounce
+			{
+				m_pos.y += move_fall;
+			}
+			break;
+
+		case DROP: /// droping - no damage, when moving off an edge
+			m_pos.y += move_fall;
+			break;
+		}
+
+		/// prioritise dispatching of nearby enemies
+
+		/*
+		/// path following
+
+		if (has_path)
+		{
+			if (path_id < m_path.size())
+			{
+				path_target = m_path_pos + m_path[path_id];
+
+				float diff = path_target.x - m_pos.x;
+
+				is_moving_right = diff > 0.0f;
+				is_moving_left = !is_moving_right;
+
+
+				/// distance to judge when to move to next node
+
+				sf::Vector2f manhat =  path_target - m_pos;
+				manhat.x = abs(manhat.x);
+				manhat.y = abs(manhat.y);
+				float dist = (manhat.x > manhat.y) ? manhat.x : manhat.y;
+
+				//cout << path_target.x << " " << m_path_pos.x << " " << pos.x << " " << dist << endl;
+				//cout << dist << endl;
+
+				/// if its left, is_moving_left
+
+				/// if its above, look for jump
+
+				if (dist < 4.0f)
+				{
+					path_id++;
+				}
+
+			}
+			else
+			{
+			  has_path = false;
+			  path_id = 0;
+			}
+
+		}
+*/
+	}
+
+	void disable_parts(unordered_map<int, Part>& parts)
+	{
+		int parts_id = m_state == JUMP;
+		//for ( int part_id : m_parts[m_part] )
+		for ( int part_id : m_parts[ parts_id ] )
+		{
+			Part& part = parts[part_id];
+			part.sprite.setPosition( m_pos - m_origin
+				+ part.m_offset + part.get_movement( m_state == MOVE ));
+		}
+	};
+
+	void update_parts(unordered_map<int, Part>& parts)
+	{
+		int parts_id = m_state == JUMP;
+		//for ( int part_id : m_parts[m_part] )
+		for ( int part_id : m_parts[ parts_id ] )
+		{
+			Part& part = parts[part_id];
+
+			part.sprite.setPosition( m_pos - m_origin
+				+ part.m_offset + part.get_movement( m_state == MOVE ));
+		}
+	};
+
+	void load_path(const string& name, Json::Value& jval) //"Heroes_Path"
 	{
 		for ( auto& layer : jval["layers"])
 		{
@@ -235,10 +399,10 @@ public:
 			{
 				for ( auto& object : layer["objects"])
 				{
-					if (object["name"].asString() == "Heroes_Path")
+					if (object["name"].asString() == name)
 					{
-						position.x = object["x"].asFloat();
-						position.y = object["y"].asFloat();
+						m_path_pos.x = object["x"].asFloat();
+						m_path_pos.y = object["y"].asFloat();
 						auto& polyline = object["polyline"];
 						m_path.resize( polyline.size() );
 
@@ -250,6 +414,242 @@ public:
 					}
 				}
 			}
+		}
+	}
+};
+
+class Think
+{
+public:
+
+	/// choose a valid move
+	void update(Hero& hero, Tile& tile)
+	{
+		if (hero.m_state != Hero::THINK) return;
+
+
+
+		switch (hero.m_state)
+		{
+		case Hero::THINK:
+		{
+			think_random(hero, tile);
+			break;
+		}
+		}
+	}
+
+	void update_nearest_type(int id, unordered_map<int, Hero>& m_heroes, short type)
+	{
+		Hero& hero = m_heroes[id];
+
+		int min_dist = 8*16;
+		int min_id = -1;
+		int min_x = 0;
+
+		for ( auto& itpair : m_heroes )
+		{
+			int   it_id = itpair.first;
+			Hero& it_hero = itpair.second;
+			if (id == it_id) continue;
+
+			if (hero.m_type == type)
+			{
+				float dist = abs( hero.m_pos.x - it_hero.m_pos.x );
+				if (dist < min_dist)
+				{
+					min_id = id;
+					min_x = it_hero.m_pos.x;
+				}
+			}
+		}
+
+		hero.enemy_target = min_id;
+		hero.enemy_x = min_x;
+	}
+
+	void think_the_hero(Hero& hero, Tile& tile)
+	{
+		hero.m_facing = 1;
+
+		// enemies ?
+		/// target enemy
+
+		/// set as target
+
+		// coins ?
+
+		if (tile.walk_right) // can walk right?
+		{
+			hero.m_state = Hero::MOVE;
+		}
+		else if (tile.jump_right) // can jump right?
+		{
+			hero.m_state = Hero::JUMP;
+		}
+
+		/// random choice
+		bool to_walk = rand() % 2;
+		bool to_jump = !to_walk;
+
+		bool to_left = rand() % 2;
+		bool to_right = !to_left;
+
+
+		if (to_right)
+		{
+			if (to_walk && tile.walk_right)
+			{
+				hero.m_state = Hero::MOVE;
+			}
+			else if (to_jump && tile.jump_right)
+			{
+				hero.m_state = Hero::JUMP;
+			}
+		}
+		else
+		{
+			if (to_walk && tile.walk_left)
+			{
+				hero.m_state = Hero::MOVE;
+			}
+			else if (to_jump && tile.jump_left)
+			{
+				hero.m_state = Hero::JUMP;
+			}
+		}
+
+		if (hero.m_state == Hero::JUMP)
+		{
+			hero.jump_ticks = hero.jump_tick_default;
+			hero.jump_speed_x = hero.jump_speed_x_default;
+			hero.jump_speed_y = hero.jump_speed_y_default;
+		}
+
+		if (hero.m_state == Hero::THINK)
+		{
+			/// wait
+			hero.m_state = Hero::WAIT;
+			hero.wait_ticks = hero.wait_ticks_default + (rand() % hero.wait_ticks_default);
+		}
+
+		if (hero.m_state != Hero::THINK) cout << hero.m_state << endl;
+
+	}
+
+	void think_random(Hero& hero, Tile& tile)
+	{
+		/// random choice
+		bool to_walk = rand() % 2;
+		bool to_jump = !to_walk;
+
+		bool to_left = rand() % 2;
+		bool to_right = !to_left;
+
+		hero.m_facing = to_right;
+
+		if (to_right)
+		{
+			if (to_walk && tile.walk_right)
+			{
+				hero.m_state = Hero::MOVE;
+			}
+			else if (to_jump && tile.jump_right)
+			{
+				hero.m_state = Hero::JUMP;
+			}
+		}
+		else
+		{
+			if (to_walk && tile.walk_left)
+			{
+				hero.m_state = Hero::MOVE;
+			}
+			else if (to_jump && tile.jump_left)
+			{
+				hero.m_state = Hero::JUMP;
+			}
+		}
+
+		if (hero.m_state == Hero::JUMP)
+		{
+			hero.jump_ticks = hero.jump_tick_default;
+			hero.jump_speed_x = hero.jump_speed_x_default;
+			hero.jump_speed_y = hero.jump_speed_y_default;
+		}
+
+		if (hero.m_state == Hero::THINK)
+		{
+			/// wait
+			hero.m_state = Hero::WAIT;
+			hero.wait_ticks = hero.wait_ticks_default + (rand() % hero.wait_ticks_default);
+		}
+
+		if (hero.m_state != Hero::THINK) cout << hero.m_state << endl;
+
+	}
+};
+
+class Collision
+{
+
+public:
+	//unordered_set<int> is_overlap;
+
+	update(Hero& hero, Tile& tile)
+	{
+		/*
+		/// if in a tile
+		if (tile.id > 0)
+		{
+			/// check above
+			float t_floor = floor(hero.m_pos.y/8)*8;
+			hero.m_pos.y = t_floor+6;
+
+			/// check sides
+
+		}*/
+
+		switch (hero.m_state)
+		{
+		case Hero::JUMP:
+		case Hero::DROP:
+		{
+			if (tile.floor_below)
+			{
+				/// is next movement going to put us through the floor?
+				float t_floor = floor(hero.m_pos.y/8)*8;
+				float nt_floor = floor((hero.m_pos.y+hero.move_fall)/8)*8;
+				bool through_floor = (t_floor != nt_floor);
+
+				if (through_floor)
+				{
+					/// correct y position
+					hero.m_pos.y = t_floor+6;
+
+					/// stop jumping
+					hero.m_state = Hero::WAIT;
+					hero.wait_ticks = hero.wait_ticks_default;
+				}
+			}
+			break;
+		}
+		case Hero::MOVE:
+		{
+			/// if in a tile lets warp above it:
+			if (tile.id < 1)
+			{
+				float t_floor = floor(hero.m_pos.y/8)*8;
+				hero.m_pos.y = t_floor+6;
+			}
+
+			if ( (hero.m_facing && !tile.walk_right) || (!hero.m_facing && !tile.walk_left) )
+			{
+				hero.m_state = Hero::WAIT;
+				hero.wait_ticks = hero.wait_ticks_default;
+			}
+			break;
+		}
 		}
 	}
 };
@@ -386,10 +786,11 @@ public:
 			int id = new_id(name);
 
 			/// hero ent is a group of several Parts
-			m_heroes.emplace(id, Hero());
+			//m_heroes.emplace(id, Hero());
 			Hero& hero = m_heroes[id];
 
-			hero.sprite.setOrigin(blueprint["origin"][0].asInt(), blueprint["origin"][1].asInt());
+			hero.m_origin.x = blueprint["origin"][0].asFloat();
+			hero.m_origin.y = blueprint["origin"][1].asFloat();
 
 			/// get part ids in draw order
 
@@ -405,6 +806,7 @@ public:
 		string kvm_name = config_json["kvm"].asString();
 
 		input.kvm_id = m_names[kvm_name];
+
 	};
 
 
@@ -431,12 +833,19 @@ public:
 
 			/// get polyline
 			int id = input.kvm_id;
-			m_thinks[id].load(tiles_json);
 
-			m_heroes[id].path_target = m_thinks[id].position + m_thinks[id].m_path[0];
-			m_heroes[id].sprite.setPosition( m_heroes[id].path_target );
+			auto& hero = m_heroes[id];
 
-			m_heroes[id].has_path = true;
+			/// give hero think and collision
+			m_thinks[id];
+			m_collisions[id];
+
+			hero.load_path("heroes_path", tiles_json);
+			hero.path_target = hero.m_path_pos + hero.m_path[0];
+			hero.has_path = true;
+
+			/// start hero at first target
+			hero.m_pos = hero.path_target; /// m_pos set ok here
 		}
 
 		bool game_over = false;
@@ -499,8 +908,9 @@ private:
 	unordered_map<int, Hero> m_heroes;
 	// Hears = sound events? (todo ogg)
 
-	/// Matter = physics, overlap/collision detect, falling,
-	unordered_map<int, Matter> m_matters;
+	/// Collision = physics, overlap/collision detect, falling,
+	unordered_map<int, Collision> m_collisions;
+
 	// collision
 	/// Commands = keyboard or ai input
 
@@ -551,12 +961,35 @@ private:
 			view.setCenter( sf::Vector2f( center.x + (ri - le)*2, center.y + (dw - up)*2 ) );
   	}
 
+		for ( auto& itpair : m_collisions)
+		{
+			int id = itpair.first;
+
+			Collision& col = itpair.second;
+			Hero& hero = m_heroes[id];
+
+			int x = hero.m_pos.x/8;
+			int y = hero.m_pos.y/8;
+			Tile& tile = m_tiles.m_map[x][y];
+			col.update( hero, tile );
+		}
+
 		for ( auto& itpair : m_thinks)
 		{
 			int id = itpair.first;
 
 			Think& think = itpair.second;
-			think.update( m_heroes[id] );
+			Hero& hero = m_heroes[id];
+
+			if (hero.m_type == Hero::HEROES)
+			{
+				think.update_nearest_type(id, m_heroes, Hero::MONSTERS);
+			}
+
+			int x = hero.m_pos.x/8;
+			int y = hero.m_pos.y/8;
+			Tile& tile = m_tiles.m_map[x][y];
+			think.update( hero, tile );
 		}
 
 		for ( auto& itpair : m_heroes)
@@ -564,32 +997,10 @@ private:
 			int id = itpair.first;
 			Hero& hero = itpair.second;
 
-			hero.update();
-
-			/// which parts list
-			if (hero.is_jumping)
-			{
-				update_see(hero, hero.m_parts[1]);
-			}
-			else
-			{
-				update_see(hero, hero.m_parts[0]);
-			}
-			hero.m_part = hero.is_jumping;
-
+			hero.update(m_tiles);
+			hero.update_parts(m_parts);
 		}
   };
-
-	void update_see(Hero& hero, vector<int>& parts)
-	{
-		for ( int part_id : parts )
-		{
-			Part& part = m_parts[part_id];
-
-			part.sprite.setPosition( hero.sprite.getPosition() - hero.sprite.getOrigin()
-				+ part.m_offset + part.get_movement(hero.is_moving));
-		}
-	};
 
   void render()
   {
@@ -619,15 +1030,25 @@ private:
 
 			for (int ty = vy-rangey; ty < (vy+rangey); ++ty)
 			{
-				int tile_pos = _map[ty];
+				const auto& tile = _map[ty];
+				int tile_pos = tile.id;
 				if (tile_pos > 0)
 				{
 					int tile_x = tile_pos % 16;
 					int tile_y = tile_pos / 16;
 
 					tilesprite.setTextureRect( sf::IntRect( tile_x*8, tile_y*8, 8, 8) );
-
 					tilesprite.setPosition( tx * 8, ty * 8);
+
+					sf::Color col = sf::Color::White;
+
+					if (tile.walk_left) col = sf::Color::Red;
+					if (tile.walk_right) col = sf::Color::Blue;
+
+					//if (tile.jump_left) col = sf::Color::Cyan;
+					//if (tile.jump_right) col = sf::Color::Yellow;
+
+					tilesprite.setColor(col);
 
 					render_texture.draw(tilesprite);
 				}
@@ -636,14 +1057,16 @@ private:
 
 		/// draw characters
 
-		for ( auto& itpair : m_heroes)
+		for (const auto& itpair : m_heroes)
 		{
 			int id = itpair.first;
-			Hero& hero = itpair.second;
+			const Hero& hero = itpair.second;
 
-			for ( int part_id : hero.m_parts[hero.m_part] )
+			int parts_id = hero.m_state == Hero::JUMP;
+			//for ( int part_id : hero.m_parts[hero.m_part] )
+			for ( int part_id : hero.m_parts[parts_id] )
 			{
-				Part& part = m_parts[part_id];
+				const Part& part = m_parts[part_id];
 
 				render_texture.draw(part.sprite);
 			}

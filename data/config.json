@@ -14,9 +14,15 @@
 			"coord":[0,0,16,24],
 			"origin":[7,23],
 			"stat":[0.5,0.2, 1.0, 1.0, 0.0]},
+		"bum":{
+			"move":"vert",
+			"offset":[7,16],
+			"coord":[16,24,16,8],
+			"origin":[7,3],
+			"stat":[0.5,0.2, 1.0, 1.0, 0.0]},
 		"bumdrop":{
 			"move":"",
-			"offset":[6,20],
+			"offset":[6,14],
 			"coord":[16,8,16,8],
 			"origin":[6,1],
 			"stat":[0.5,0.1, 1.0, 1.0, 0.5]},
@@ -57,14 +63,14 @@
 			"origin":[6,7],
 			"stat":[0.5,0.1, 2.0, 1.0, 0.5]},
 		"face_smile":{
-			"move":"vert",
-			"offset":[9,11],
+			"move":"",
+			"offset":[9,8],
 			"coord":[48,0,16,16],
 			"origin":[8,8],
 			"stat":[0.5,0.2, 1.0, 1.0, 0.0]},
 		"face_joy":{
-			"move":"vert",
-			"offset":[9,11],
+			"move":"",
+			"offset":[9,8],
 			"coord":[48,16,16,16],
 			"origin":[8,8],
 			"stat":[0.5,0.2, 1.0, 2.0, 0.0]}
@@ -80,14 +86,15 @@
 				"foot_r",
 				"foot_l",
 				"hand_r_shield",
+				"bum",
 				"body",
 				"face_smile",
 				"hand_l_down"
 				],
 
 			"jump":[
-				"bumdrop",
 				"hand_r_shield",
+				"bumdrop",
 				"body",
 				"face_joy",
 				"hand_l_up"
